@@ -6,18 +6,6 @@ Firmware for the **FlexGPIO** — a custom I2C GPIO expander built on a dedicate
 
 > **Status:** Pre-release / active development. See [Releases](https://github.com/Expatria-Technologies/FlexGPIO/releases) for the latest pre-built firmware.
 
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Features](#features)
-- [Hardware](#hardware)
-- [Building the Firmware](#building-the-firmware)
-- [Flashing the Firmware](#flashing-the-firmware)
-- [Related Repositories](#related-repositories)
-- [Contributing](#contributing)
-- [License](#license)
 
 ---
 
