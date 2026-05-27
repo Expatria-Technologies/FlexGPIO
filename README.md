@@ -13,7 +13,7 @@ Firmware for the **FlexGPIO** — a custom I2C GPIO expander built on a dedicate
 
 Traditional GPIO expander ICs (e.g. MCP23017) provide a fixed set of general-purpose digital I/O pins over I2C. FlexGPIO takes a different approach: by running firmware on a full RP2040 MCU, each "expanded" I/O point can be reconfigured in software to serve almost any function — standard digital I/O, PWM, analog output, NeoPixel data, or even additional step/direction stepper outputs.
 
-FlexGPIO communicates with the host board (e.g. the FlexiHAL 2350's RP2350 main processor) over I2C and serves as a satellite co-processor for all auxiliary I/O needs.
+FlexGPIO communicates with the host board (e.g. the FlexiHAL 2350's RP2350 main processor) over I2C and serves as a satellite co-processor for auxiliary I/O.
 
 ---
 
@@ -36,21 +36,7 @@ FlexGPIO communicates with the host board (e.g. the FlexiHAL 2350's RP2350 main 
 
 FlexGPIO targets a generic RP2040 board and is primarily intended for use as the secondary MCU on the **FlexiHAL 2350** CNC controller. On that board, an RP2040 sits alongside the main RP2350 processor solely to provide the expanded I/O subsystem.
 
-The firmware is compiled for the RP2040 running at **120 MHz** using the Arduino framework via PlatformIO.
-
-Key `platformio.ini` settings:
-
-```ini
-[env:pico]
-platform   = https://github.com/maxgerhardt/platform-raspberrypi.git
-board      = generic
-framework  = arduino
-board_build.core         = earlephilhower
-board_build.filesystem_size = 1m
-board_build.f_cpu        = 120000000L
-upload_protocol          = cmsis-dap
-debug_tool               = cmsis-dap
-```
+The firmware is compiled for the RP2040 using the Arduino framework via PlatformIO.
 
 ---
 
@@ -59,7 +45,6 @@ debug_tool               = cmsis-dap
 ### Prerequisites
 
 - [PlatformIO](https://platformio.org/) (CLI or the VS Code extension)
-- A CMSIS-DAP compatible debug probe (for SWD flashing during development)
 
 ### Steps
 
@@ -90,8 +75,6 @@ FlexGPIO supports the RP2040's built-in **UF2 bootloader**, making firmware upda
 
 > **Note:** Some operating systems may show an error when the copy completes because the "disk" disappears without being ejected. This is expected behaviour and can be safely ignored.
 
-Pre-built `.uf2` binaries are available on the [Releases page](https://github.com/Expatria-Technologies/FlexGPIO/releases).
-
 ---
 
 ## Related Repositories
@@ -100,8 +83,6 @@ Pre-built `.uf2` binaries are available on the [Releases page](https://github.co
 |---|---|
 | [FlexiHAL 2350](https://github.com/Expatria-Technologies/FlexiHAL_2350) | The CNC controller board that hosts the FlexGPIO expander |
 | [plugin_FlexGPIO](https://github.com/Expatria-Technologies/plugin_FlexGPIO) | grblHAL plugin that communicates with FlexGPIO over I2C |
-| [Flexi-HAL](https://github.com/Expatria-Technologies/Flexi-HAL) | Previous-generation Expatria CNC controller |
-| [remora-flexi-hal](https://github.com/Expatria-Technologies/remora-flexi-hal) | LinuxCNC Remora port for the Flexi-HAL family |
 
 ---
 
