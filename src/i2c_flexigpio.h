@@ -1,8 +1,6 @@
 #ifndef __I2C_FLEXIGPIO_H__
 #define __I2C_FLEXIGPIO_H__
 
-#include <Arduino.h>
-//#include <Wire.h>
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
@@ -15,8 +13,8 @@
 #include "pico/time.h"
 #include "pico/stdio.h"
 
-#include <i2c_fifo.h>
-#include <i2c_slave.h>
+#include "i2c_fifo.h"
+#include "i2c_slave.h"
 
 #include "i2c_flexigpio.h"
 
@@ -66,22 +64,20 @@ const uint8_t AUXOUT7_PIN         = 16;
 //contains data from the host (output set values, polarity mask).
 typedef struct __attribute__((packed)) {
     uint32_t value;
-    uint32_t direction_mask;    
-    uint32_t polarity_mask;
-    uint32_t enable_mask;
+    uint16_t mcu_irq_mask;
+    uint16_t probe_irq_mask;
 } output_packet_t;
 
 //contains data sent to the host (pin values).
 typedef struct __attribute__((packed)) {
     uint32_t value;
-    uint32_t direction_mask;    
-    uint32_t polarity_mask;
-    uint32_t enable_mask; //allows to mask inputs.
+    uint16_t mcu_irq_mask;
+    uint16_t probe_irq_mask;
 } input_packet_t;
 
 typedef struct
 {
-    uint8_t mem[128];
+    uint8_t mem[8];
     uint8_t mem_address;
     uint8_t mem_address_written;
 } status_context_t;

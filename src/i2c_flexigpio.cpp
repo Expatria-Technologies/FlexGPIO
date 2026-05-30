@@ -43,6 +43,24 @@ uint8_t mem_address_written = 0;
 int character_sent;
 int command_error = 0;
 
+const uint32_t input_pin_mask = 
+    (1u << TOOL_PIN  )|
+    (1u << PROBE_PIN )|
+    (1u << ALARMX_PIN)|
+    (1u << ALARMY_PIN)| 
+    (1u << ALARMZ_PIN)| 
+    (1u << ALARMA_PIN)| 
+    (1u << ALARMB_PIN)| 
+    (1u << ALARMC_PIN);
+
+const uint32_t comm_pin_mask = 
+    (1u << MCU_PRB_PIN)|
+    (1u << MCU_IRQ_PIN)|
+    (1u << I2C_SLAVE_SDA_PIN)|
+    (1u << I2C_SLAVE_SCL_PIN);
+
+static uint32_t old_inputs, new_inputs, changed;
+
 // Our handler is called from the I2C ISR, so it must complete quickly. Blocking calls /
 // printing to stdio may interfere with interrupt handling.
 static void i2c_slave_handler(i2c_inst_t *i2c, i2c_slave_event_t event) {
@@ -82,150 +100,76 @@ static void setup_slave() {
     i2c_slave_init(i2c0, I2C_SLAVE_ADDRESS, &i2c_slave_handler);
 }
 
-#if 0
-uint8_t keypad_sendcount (bool clearpin) {
-  //maybe use key_pressed variable to avoid spamming?
-  int timeout = I2C_TIMEOUT_VALUE;
-
-  command_error = 0;
-
-  //make sure no transmission is active
-  //while (mem_address_written != 0 && mem_address>0);
-  while (mem_address_written != 0 && status_context.mem_address>0 &&count_context.mem_address>0);
-
-    //context.mem[0] = character;
-    count_context.mem_address = 0;
-    gpio_put(KPSTR_PIN, false);
-    sleep_us(200);
-    while (count_context.mem_address == 0 && timeout){
-      sleep_us(200);      
-      timeout = timeout - 1;}
-
-    if(!timeout)
-      command_error = 1;
-    //sleep_ms(2);
-    if (clearpin){
-      sleep_us(10);
-      gpio_put(KPSTR_PIN, true);
-    }
-
-  return true;
-};
-
-#endif
-
 void i2c_task (void){
     
-    //Set the outputs
-    const uint32_t mask = ~((1 << MCU_PRB_PIN) | (1 << MCU_IRQ_PIN) | (1 << I2C_SLAVE_SDA_PIN) | (1 << I2C_SLAVE_SCL_PIN));
     // Get current state of pins
-    uint32_t mask_values = gpio_get_all() & ~mask;
+    uint32_t comm_pin_values = gpio_get_all() & comm_pin_mask;
     // Apply new values with mask and preserve existing pin states    
-    gpio_put_all((outputpacket.value & mask) | mask_values);
-    //gpio_put_all(outputpacket.value);
+    gpio_put_all((outputpacket.value & ~comm_pin_mask) |comm_pin_values);
 
-    //polarity mask resides in the data read from the host.  Polarity is only used for the inputs (for now?)
-    inputpacket.polarity_mask = outputpacket.polarity_mask;
-    inputpacket.enable_mask = outputpacket.enable_mask;
-    inputpacket.direction_mask = outputpacket.direction_mask;
+    // Mask data resides in packet from host
+    inputpacket.probe_irq_mask = outputpacket.probe_irq_mask;
+    inputpacket.mcu_irq_mask = outputpacket.mcu_irq_mask & ~inputpacket.probe_irq_mask; //remove probe_pins from mcu_irq_mask
 
-    //Read the pin values (inputs and outputs)
+    // Read the pin values (inputs and outputs)
     uint32_t getval = gpio_get_all();
-    uint32_t masked = getval & inputpacket.enable_mask;
-    masked ^= (inputpacket.polarity_mask & inputpacket.enable_mask);
-    inputpacket.value = masked;
+    inputpacket.value = getval;
 
-    //Finally, do the necessary math operations on the motor and probe pins to combine then and set the outputs accordingly.
+    // Do the necessary math operations to combine pins and set the irq signals accordingly
+    static bool alarm_or_input = false;
+    static bool probe_or_tool = false;
 
-    bool any_alarm_active = (inputpacket.value & 
-       ((1 << ALARMX_PIN) | 
-        (1 << ALARMY_PIN) | 
-        (1 << ALARMZ_PIN) | 
-        (1 << ALARMA_PIN) | 
-        (1 << ALARMB_PIN) | 
-        (1 << ALARMC_PIN))) != 0;
+    new_inputs = (inputpacket.value & input_pin_mask);
+    changed = (new_inputs ^ old_inputs);
+    old_inputs = new_inputs;
 
-    bool probe_or_value = (inputpacket.value & (1 << TOOL_PIN)) || (inputpacket.value & (1 << PROBE_PIN)); //or
-    //bool probe_or_value = !!(inputpacket.value & (1 << TOOL_PIN)) ^ !!(inputpacket.value & (1 << PROBE_PIN)); //xor
+    // MCU interrupt is toggle (stateless)
+    if (changed & inputpacket.mcu_irq_mask)
+        alarm_or_input ^= 1;
+    
+    // Probe interrupt tracks active pin state (assumes only one pin is active in irq mask)
+    probe_or_tool = (new_inputs & (uint32_t)inputpacket.probe_irq_mask) != 0;
 
-    //IRQ pins are active high.
-    probe_or_value = probe_or_value;
-    any_alarm_active = any_alarm_active;
-
-    //apply inversion to these outputs.
-    if (outputpacket.polarity_mask & (1 << MCU_PRB_PIN))
-      gpio_put(MCU_PRB_PIN, !probe_or_value);
-    else
-      gpio_put(MCU_PRB_PIN, probe_or_value);
-
-
-    gpio_put(MCU_IRQ_PIN, any_alarm_active);
+    //IRQ pins are rising/falling (all inversion handled by host)
+    gpio_put(MCU_PRB_PIN, probe_or_tool);
+    gpio_put(MCU_IRQ_PIN, alarm_or_input);
 
     #if 0 //testing code
 
-    Serial.printf("outputpacket.value ");
+    printf("probe_or_value ");
     // For multiple bytes
-    Serial.printf("%d", outputpacket.value);
-    Serial.printf("\r\n");
+    printf("%d", probe_or_value);
+    printf("\r\n");
 
-    Serial.printf("masked ");
-    // Print each bit from MSB to LSB
-    for (int i = sizeof(masked) * 8 - 1; i >= 0; i--) {
-        Serial.printf("%d", (masked >> i) & 1);
-    }
-    Serial.printf("\r\n");
-
-    Serial.printf("inputpacket.polarity_mask ");
+    printf("any_signal_active ");
     // For multiple bytes
-    Serial.printf("%d", inputpacket.polarity_mask);
-    Serial.printf("\r\n");  
+    printf("%d", any_signal_active);
+    printf("\r\n");
 
-    Serial.printf("inputpacket.enable_mask ");
+    printf("inputpacket.value ");
     // For multiple bytes
-    Serial.printf("%d", inputpacket.enable_mask);
-    Serial.printf("\r\n");  
+    printf("%d", inputpacket.value);
+    printf("\r\n");
 
-    //Serial.printf("inputpacket.direction_mask ");
+    printf("outputpacket.value ");
     // For multiple bytes
-    //Serial.printf("%d", inputpacket.direction_mask);
-    //Serial.printf("\r\n");  
+    printf("%d", outputpacket.value);
+    printf("\r\n");
 
-    Serial.printf("any_alarm_active ");
-    // For multiple bytes
-    Serial.printf("%d", any_alarm_active);
-    Serial.printf("\r\n");
-
-    Serial.printf("probe_or_value ");
-    // For multiple bytes
-    Serial.printf("%d", probe_or_value);
-    Serial.printf("\r\n");
-
-    Serial.printf("inputpacket.value ");
-    // For multiple bytes
-    Serial.printf("%d", inputpacket.value);
-    Serial.printf("\r\n");
-
-    Serial.printf("outputpacket.value ");
-    // For multiple bytes
-    Serial.printf("%d", outputpacket.value);
-    Serial.printf("\r\n");
-
-    sleep_ms(500);
+    sleep_ms(1500);
     #endif
-
 }
 
 void init_i2c_responder (void){
 
   //Serial.printf("Setup GPIOS\r\n");
   inputpacket.value = 0;
-  inputpacket.polarity_mask = 0;
-  inputpacket.enable_mask = 0;
+  inputpacket.probe_irq_mask = 0;
+  inputpacket.mcu_irq_mask = 0;
 
   outputpacket.value = 0;
-  outputpacket.polarity_mask = 0;
-  outputpacket.enable_mask = 0;    
-
+  outputpacket.probe_irq_mask = 0;
+  outputpacket.mcu_irq_mask = 0;    
 
   //set up gpio output pins  
   gpio_init(MCU_IRQ_PIN);
