@@ -36,17 +36,23 @@ FlexGPIO communicates with the host board (e.g. the FlexiHAL 2350's RP2350 main 
 
 FlexGPIO targets a generic RP2040 board and is primarily intended for use as the secondary MCU on the **FlexiHAL 2350** CNC controller. On that board, an RP2040 sits alongside the main RP2350 processor solely to provide the expanded I/O subsystem.
 
-The firmware is compiled for the RP2040 using the Arduino framework via PlatformIO.
+The firmware is compiled for the RP2040 using the Arduino framework via PlatformIO if running from flash.
+
+If using the FlexGPIO Bootloader to load the firmware to RAM from the RP2350, it is built with cmake. This was needed to handle the complexities of initialization of bootloader and firmware in RAM.
 
 ---
 
 ## Building the Firmware
 
-### Prerequisites
+There are currently two build mechanisms, depending on how the firmware is being run. This may eventually converge on one, but both are kept to maintain compatbility with the GRBLHAL plugin under development. 
+
+### Firmware Running from Flash
+
+#### Prerequisites
 
 - [PlatformIO](https://platformio.org/) (CLI or the VS Code extension)
 
-### Steps
+#### Steps
 
 ```bash
 # Clone the repository
@@ -62,9 +68,35 @@ pio run --target upload
 
 The compiled `.uf2` artifact will be found in `.pio/build/pico/`.
 
+
+### Firmare Running from RAM with the FlexGPIO Bootloader
+
+#### Prerequisites
+
+- [pico-sdk](https://github.com/raspberrypi/pico-sdk) and `PICO_SDK_PATH` environment varianble set to install path
+- CMake ≥ 3.13
+- RP2040 flashed with [FlexGPIO Bootloader](https://github.com/Expatria-Technologies/FlexGPIO_Bootloader)
+
+
+#### Steps
+
+```bash
+# Clone the repository
+git clone https://github.com/Expatria-Technologies/FlexGPIO.git
+cd FlexGPIO
+
+# Build
+mkdir -p build && cd build
+cmake -DPICO_SDK_PATH=$PICO_SDK_PATH ..
+make FlexGPIO_ram
+```
+The compiled `.bin` artifact will be found in: `build/`
+
 ---
 
 ## Flashing the Firmware
+
+> **Note:** If using the FlexGPIO Bootloader, there is nothing to flash; the firmware is embedded in the RP2350 firmware on the main MCU. This section does not apply in this case.
 
 FlexGPIO supports the RP2040's built-in **UF2 bootloader**, making firmware updates easy without any special tools:
 
@@ -75,6 +107,7 @@ FlexGPIO supports the RP2040's built-in **UF2 bootloader**, making firmware upda
 
 > **Note:** Some operating systems may show an error when the copy completes because the "disk" disappears without being ejected. This is expected behaviour and can be safely ignored.
 
+
 ---
 
 ## Related Repositories
@@ -83,6 +116,7 @@ FlexGPIO supports the RP2040's built-in **UF2 bootloader**, making firmware upda
 |---|---|
 | [FlexiHAL 2350](https://github.com/Expatria-Technologies/FlexiHAL_2350) | The CNC controller board that hosts the FlexGPIO expander |
 | [plugin_FlexGPIO](https://github.com/Expatria-Technologies/plugin_FlexGPIO) | grblHAL plugin that communicates with FlexGPIO over I2C |
+| [FlexGPIO_Bootloader](https://github.com/Expatria-Technologies/FlexGPIO_Bootloader) | Bootloader that allows loading FlexGPIO to RAM at startup |
 
 ---
 

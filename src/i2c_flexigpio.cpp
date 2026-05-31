@@ -1,5 +1,6 @@
 
 #include "i2c_flexigpio.h"
+#include "hardware/watchdog.h"
 
 /**
  * Example program for basic use of pico as an I2C peripheral (previously known as I2C slave)
@@ -101,7 +102,15 @@ static void setup_slave() {
 }
 
 void i2c_task (void){
-    
+    // Watchdog escape: host writes 8 bytes of 0xFF to trigger reboot into bootloader
+    if (outputpacket.value == 0xFFFFFFFF &&
+        outputpacket.mcu_irq_mask == 0xFFFF &&
+        outputpacket.probe_irq_mask == 0xFFFF) {
+        watchdog_hw->scratch[0] = 1;
+        watchdog_reboot(0, 0, 10);
+        for (;;) __asm__ volatile("wfi");
+    }
+
     // Get current state of pins
     uint32_t comm_pin_values = gpio_get_all() & comm_pin_mask;
     // Apply new values with mask and preserve existing pin states    
